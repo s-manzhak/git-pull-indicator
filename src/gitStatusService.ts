@@ -79,51 +79,11 @@ export class GitStatusService {
     if (options?.dirtyOnly && prev) {
       status = { ...prev, isDirty: status.isDirty, repoPath: key };
     } else {
-      status = this.mergeSyncCounts(prev, status);
       status.repoPath = key;
     }
 
     this.statusMap.set(key, status);
     return status;
-  }
-
-  /**
-   * vscode.git often reports ahead/behind as 0 while the working tree is dirty.
-   * Keep the last known sync counts until HEAD/upstream actually changes.
-   */
-  private mergeSyncCounts(
-    prev: RepoStatus | undefined,
-    next: RepoStatus
-  ): RepoStatus {
-    if (!prev) {
-      return next;
-    }
-
-    const sameHead =
-      next.headCommit !== undefined &&
-      prev.headCommit !== undefined &&
-      next.headCommit === prev.headCommit;
-    const sameBranch =
-      !next.headCommit &&
-      !prev.headCommit &&
-      next.branch === prev.branch &&
-      next.upstream === prev.upstream;
-
-    if (
-      (sameHead || sameBranch) &&
-      next.behind === 0 &&
-      next.ahead === 0 &&
-      (prev.behind > 0 || prev.ahead > 0)
-    ) {
-      return {
-        ...next,
-        ahead: prev.ahead,
-        behind: prev.behind,
-        hasUpstream: next.hasUpstream || prev.hasUpstream,
-      };
-    }
-
-    return next;
   }
 
   async refreshSingleRepo(repoPath: string): Promise<RepoStatus> {

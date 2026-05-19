@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.29
+
+- Fix stale push indicators after git push by trusting fresh CLI sync counts instead of preserving old ahead/behind values
+- Watch remote git refs so push/fetch updates refresh the affected repository faster
+
 ## 0.1.28
 
 - Update repository and issue tracker metadata to s-manzhak/git-pull-indicator

@@ -2,7 +2,7 @@
   "name": "git-pull-indicator",
   "displayName": "Git Pull Indicator",
   "description": "Shows Git pull/push badges on repository folders in the Explorer",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "publisher": "zhakman",
   "license": "MIT",
   "homepage": "https://marketplace.visualstudio.com/items?itemName=zhakman.git-pull-indicator",

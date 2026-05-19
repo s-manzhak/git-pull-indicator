@@ -3,8 +3,16 @@ import { pathsEqual, resolveFsPath } from './pathUtils';
 
 const DEBOUNCE_MS = 1500;
 
+const WATCH_PATTERNS = [
+  '**/.git/logs/HEAD',
+  '**/.git/refs/remotes/**',
+  '**/.git/FETCH_HEAD',
+  '**/.git/packed-refs',
+];
+
 /**
- * Fallback: watch .git/logs/HEAD from workspace root (works when vscode.git events are unavailable).
+ * Fallback: watch lightweight git metadata from workspace root.
+ * HEAD changes catch commits; remote refs catch push/fetch updates.
  */
 export class GitRepoWatcher {
   private readonly watchers: vscode.Disposable[] = [];
@@ -21,16 +29,19 @@ export class GitRepoWatcher {
     const repoSet = new Set(repoPaths.map(resolveFsPath));
 
     for (const root of workspaceRoots) {
-      const pattern = new vscode.RelativePattern(root, '**/.git/logs/HEAD');
-      const watcher = vscode.workspace.createFileSystemWatcher(pattern);
-      watcher.onDidChange((uri) => this.onGitLogChanged(uri, repoSet));
-      watcher.onDidCreate((uri) => this.onGitLogChanged(uri, repoSet));
-      this.watchers.push(watcher);
+      for (const watchPattern of WATCH_PATTERNS) {
+        const pattern = new vscode.RelativePattern(root, watchPattern);
+        const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+        watcher.onDidChange((uri) => this.onGitMetadataChanged(uri, repoSet));
+        watcher.onDidCreate((uri) => this.onGitMetadataChanged(uri, repoSet));
+        watcher.onDidDelete((uri) => this.onGitMetadataChanged(uri, repoSet));
+        this.watchers.push(watcher);
+      }
     }
   }
 
-  private onGitLogChanged(uri: vscode.Uri, repoSet: Set<string>): void {
-    const match = uri.fsPath.match(/^(.+)\/\.git\/logs\/HEAD$/);
+  private onGitMetadataChanged(uri: vscode.Uri, repoSet: Set<string>): void {
+    const match = uri.fsPath.match(/^(.+)\/\.git\/(?:logs\/HEAD|refs\/remotes\/|FETCH_HEAD|packed-refs)/);
     if (!match) {
       return;
     }
