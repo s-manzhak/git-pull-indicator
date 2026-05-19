@@ -1,11 +1,12 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { runPool } from './asyncPool';
-import { normalizeFsPath, pathsEqual } from './pathUtils';
-import { GitPullIndicatorConfig, RepoStatus } from './types';
+import { tryStatusFromGitApi } from './gitApiStatus';
+import { normalizeFsPath, pathsEqual, resolveFsPath } from './pathUtils';
+import { ApplyStatusOptions, GitPullIndicatorConfig, RepoStatus } from './types';
 
 const execPromise = promisify(exec);
-const STATUS_CONCURRENCY = 8;
+const DEFAULT_STATUS_CONCURRENCY = 3;
 const FETCH_CONCURRENCY = 3;
 
 export class GitStatusService {
@@ -26,9 +27,9 @@ export class GitStatusService {
   }
 
   private pruneRemoved(repoPaths: string[]): void {
-    const newSet = new Set(repoPaths.map(normalizeFsPath));
+    const newSet = new Set(repoPaths.map((p) => resolveFsPath(p)));
     for (const key of this.statusMap.keys()) {
-      if (!newSet.has(key)) {
+      if (!newSet.has(resolveFsPath(key))) {
         this.statusMap.delete(key);
       }
     }
@@ -44,19 +45,19 @@ export class GitStatusService {
     onRepoUpdated: (repoPath: string) => void
   ): Promise<void> {
     this.pruneRemoved(repoPaths);
+    const concurrency = this.statusConcurrency();
 
-    await runPool(repoPaths, STATUS_CONCURRENCY, async (repoPath) => {
-      const status = await this.getRepoStatus(repoPath);
-      const key = normalizeFsPath(repoPath);
-      this.statusMap.set(key, status);
+    await runPool(repoPaths, concurrency, async (repoPath) => {
+      const status = await this.resolveRepoStatus(repoPath);
+      this.applyStatus(repoPath, status);
       onRepoUpdated(repoPath);
     });
 
     if (options.doFetch || this.config.autoFetch) {
       await runPool(repoPaths, FETCH_CONCURRENCY, async (repoPath) => {
         await this.fetchRepo(repoPath);
-        const status = await this.getRepoStatus(repoPath);
-        this.statusMap.set(normalizeFsPath(repoPath), status);
+        const status = await this.resolveRepoStatus(repoPath);
+        this.applyStatus(repoPath, status);
         onRepoUpdated(repoPath);
       });
     }
@@ -67,18 +68,97 @@ export class GitStatusService {
     await runPool(paths, FETCH_CONCURRENCY, (p) => this.fetchRepo(p));
   }
 
-  async refreshSingleRepo(repoPath: string): Promise<RepoStatus> {
-    const status = await this.getRepoStatus(repoPath);
-    let key = normalizeFsPath(repoPath);
-    for (const k of this.statusMap.keys()) {
-      if (pathsEqual(k, repoPath)) {
-        key = k;
-        break;
-      }
+  applyStatus(
+    repoPath: string,
+    status: RepoStatus,
+    options?: ApplyStatusOptions
+  ): RepoStatus {
+    const key = this.resolveKey(repoPath);
+    const prev = this.statusMap.get(key);
+
+    if (options?.dirtyOnly && prev) {
+      status = { ...prev, isDirty: status.isDirty, repoPath: key };
+    } else {
+      status = this.mergeSyncCounts(prev, status);
+      status.repoPath = key;
     }
-    status.repoPath = key;
+
     this.statusMap.set(key, status);
     return status;
+  }
+
+  /**
+   * vscode.git often reports ahead/behind as 0 while the working tree is dirty.
+   * Keep the last known sync counts until HEAD/upstream actually changes.
+   */
+  private mergeSyncCounts(
+    prev: RepoStatus | undefined,
+    next: RepoStatus
+  ): RepoStatus {
+    if (!prev) {
+      return next;
+    }
+
+    const sameHead =
+      next.headCommit !== undefined &&
+      prev.headCommit !== undefined &&
+      next.headCommit === prev.headCommit;
+    const sameBranch =
+      !next.headCommit &&
+      !prev.headCommit &&
+      next.branch === prev.branch &&
+      next.upstream === prev.upstream;
+
+    if (
+      (sameHead || sameBranch) &&
+      next.behind === 0 &&
+      next.ahead === 0 &&
+      (prev.behind > 0 || prev.ahead > 0)
+    ) {
+      return {
+        ...next,
+        ahead: prev.ahead,
+        behind: prev.behind,
+        hasUpstream: next.hasUpstream || prev.hasUpstream,
+      };
+    }
+
+    return next;
+  }
+
+  async refreshSingleRepo(repoPath: string): Promise<RepoStatus> {
+    const status = await this.resolveRepoStatus(repoPath);
+    return this.applyStatus(repoPath, status);
+  }
+
+  /** Git CLI for ahead/behind; API for isDirty and HEAD metadata. */
+  private async resolveRepoStatus(repoPath: string): Promise<RepoStatus> {
+    const fromApi = tryStatusFromGitApi(repoPath);
+    const subprocess = await this.getRepoStatus(repoPath);
+    if (!fromApi) {
+      return subprocess;
+    }
+    return {
+      ...fromApi,
+      ahead: subprocess.ahead,
+      behind: subprocess.behind,
+      hasUpstream: subprocess.hasUpstream,
+      isDirty: subprocess.isDirty,
+      headCommit: fromApi.headCommit ?? subprocess.headCommit,
+      branch: fromApi.branch ?? subprocess.branch,
+      upstream: fromApi.upstream ?? subprocess.upstream,
+      error: fromApi.error ?? subprocess.error,
+    };
+  }
+
+  private resolveKey(repoPath: string): string {
+    const resolved = resolveFsPath(repoPath);
+    for (const k of this.statusMap.keys()) {
+      if (pathsEqual(k, repoPath)) {
+        return resolveFsPath(k);
+      }
+    }
+    return resolved;
   }
 
   async refreshAll(onRepoUpdated?: (repoPath: string) => void): Promise<void> {
@@ -86,15 +166,22 @@ export class GitStatusService {
     if (this.config.autoFetch) {
       await this.fetchAll(paths);
     }
-    await runPool(paths, STATUS_CONCURRENCY, async (repoPath) => {
-      const status = await this.getRepoStatus(repoPath);
-      this.statusMap.set(normalizeFsPath(repoPath), status);
+    await runPool(paths, this.statusConcurrency(), async (repoPath) => {
+      const status = await this.resolveRepoStatus(repoPath);
+      this.applyStatus(repoPath, status);
       onRepoUpdated?.(repoPath);
     });
   }
 
+  private statusConcurrency(): number {
+    return Math.max(
+      1,
+      Math.min(8, Math.floor(this.config.statusConcurrency || DEFAULT_STATUS_CONCURRENCY))
+    );
+  }
+
   private async fetchRepo(repoPath: string): Promise<void> {
-    const key = normalizeFsPath(repoPath);
+    const key = resolveFsPath(repoPath);
     if (this.fetching.has(key)) {
       return;
     }
@@ -109,45 +196,71 @@ export class GitStatusService {
   }
 
   private async getRepoStatus(repoPath: string): Promise<RepoStatus> {
+    const key = this.resolveKey(repoPath);
+    const previous = this.statusMap.get(key);
     const status: RepoStatus = {
       repoPath,
-      ahead: 0,
-      behind: 0,
-      hasUpstream: false,
+      ahead: previous?.ahead ?? 0,
+      behind: previous?.behind ?? 0,
+      hasUpstream: previous?.hasUpstream ?? false,
+      isDirty: previous?.isDirty,
     };
 
     try {
-      const branchResult = await execPromise('git rev-parse --abbrev-ref HEAD', {
-        cwd: repoPath,
-        timeout: 10_000,
-      });
-      status.branch = branchResult.stdout.trim();
-
-      try {
-        const upstreamResult = await execPromise(
-          'git rev-parse --abbrev-ref --symbolic-full-name @{upstream}',
-          { cwd: repoPath, timeout: 10_000 }
-        );
-        status.upstream = upstreamResult.stdout.trim();
-        status.hasUpstream = true;
-
-        const behindResult = await execPromise('git rev-list --count HEAD..@{upstream}', {
+      const result = await execPromise(
+        'git status --porcelain=v1 --branch --untracked-files=no',
+        {
           cwd: repoPath,
-          timeout: 30_000,
-        });
-        const aheadResult = await execPromise('git rev-list --count @{upstream}..HEAD', {
-          cwd: repoPath,
-          timeout: 30_000,
-        });
-        status.behind = parseInt(behindResult.stdout.trim(), 10) || 0;
-        status.ahead = parseInt(aheadResult.stdout.trim(), 10) || 0;
-      } catch {
-        status.hasUpstream = false;
-      }
+          timeout: 15_000,
+        }
+      );
+      this.applyPorcelainStatus(result.stdout, status);
     } catch (err) {
       status.error = err instanceof Error ? err.message : String(err);
+      if (previous && !status.error.includes('not a git repository')) {
+        status.ahead = previous.ahead;
+        status.behind = previous.behind;
+        status.hasUpstream = previous.hasUpstream;
+        status.isDirty = previous.isDirty;
+        status.branch = previous.branch;
+        status.upstream = previous.upstream;
+      }
     }
 
     return status;
+  }
+
+  private applyPorcelainStatus(stdout: string, status: RepoStatus): void {
+    const lines = stdout.split(/\r?\n/).filter(Boolean);
+    const branchLine = lines[0] ?? '';
+    status.isDirty = lines.slice(1).some((line) => line.trim().length > 0);
+
+    if (!branchLine.startsWith('## ')) {
+      return;
+    }
+
+    const value = branchLine.slice(3);
+    const syncStart = value.indexOf(' [');
+    const branchSpec = syncStart >= 0 ? value.slice(0, syncStart) : value;
+    const syncInfo =
+      syncStart >= 0 && value.endsWith(']') ? value.slice(syncStart + 2, -1) : '';
+    const upstreamSep = branchSpec.indexOf('...');
+
+    status.branch =
+      upstreamSep >= 0 ? branchSpec.slice(0, upstreamSep).trim() : branchSpec.trim();
+    status.upstream =
+      upstreamSep >= 0 ? branchSpec.slice(upstreamSep + 3).trim() : undefined;
+    status.hasUpstream = Boolean(status.upstream);
+    status.ahead = 0;
+    status.behind = 0;
+
+    const aheadMatch = syncInfo.match(/ahead (\d+)/);
+    const behindMatch = syncInfo.match(/behind (\d+)/);
+    if (aheadMatch) {
+      status.ahead = parseInt(aheadMatch[1], 10) || 0;
+    }
+    if (behindMatch) {
+      status.behind = parseInt(behindMatch[1], 10) || 0;
+    }
   }
 }

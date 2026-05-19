@@ -1,37 +1,78 @@
 import * as vscode from 'vscode';
-import { GitPullDecorationProvider } from './decorationProvider';
 import { scanRepositories } from './gitScanner';
 import { GitStatusService } from './gitStatusService';
 import { pathsEqual, resolveFsPath } from './pathUtils';
 import { subscribeGitExtension } from './gitExtensionListener';
 import { GitRepoWatcher } from './gitRepoWatcher';
-import {
-  NodeGitWatcher,
-  subscribeDocumentSave,
-  subscribeWindowFocus,
-} from './nodeGitWatcher';
-import { StatusTreeViewProvider } from './statusTreeView';
-import { GitPullIndicatorConfig } from './types';
+import { subscribeDocumentSave, subscribeWindowFocus } from './nodeGitWatcher';
+import { RepoFolderDecorationProvider } from './repoFolderDecorationProvider';
+import { GitPullIndicatorConfig, RepoStatus } from './types';
 
 let statusService: GitStatusService;
-let decorationProvider: GitPullDecorationProvider;
-let treeViewProvider: StatusTreeViewProvider;
+let folderDecorationProvider: RepoFolderDecorationProvider;
 let repoWatcher: GitRepoWatcher;
-let nodeGitWatcher: NodeGitWatcher;
 let refreshTimer: ReturnType<typeof setInterval> | undefined;
 let lastRepoPaths: string[] = [];
 let statusBarItem: vscode.StatusBarItem;
 let outputChannel: vscode.OutputChannel;
+let refreshInFlight = false;
 
 function readConfig(): GitPullIndicatorConfig {
   const config = vscode.workspace.getConfiguration('gitPullIndicator');
   return {
-    refreshIntervalMinutes: config.get<number>('refreshIntervalMinutes', 1),
+    refreshIntervalMinutes: config.get<number>('refreshIntervalMinutes', 5),
     autoFetch: config.get<boolean>('autoFetch', false),
     maxDepth: config.get<number>('maxDepth', 4),
+    statusConcurrency: config.get<number>('statusConcurrency', 3),
     showCleanRepositories: config.get<boolean>('showCleanRepositories', false),
     useAsciiBadges: config.get<boolean>('useAsciiBadges', false),
+    showExplorerFolderBadges: config.get<boolean>(
+      'showExplorerFolderBadges',
+      true
+    ),
+    showExplorerFolderColors: config.get<boolean>(
+      'showExplorerFolderColors',
+      true
+    ),
+    refreshOnWindowFocus: config.get<boolean>('refreshOnWindowFocus', false),
   };
+}
+
+function explorerBadgesEnabled(): boolean {
+  return readConfig().showExplorerFolderBadges;
+}
+
+/** Re-draw folder badges after built-in Git finishes its Explorer decorations. */
+function scheduleFolderDecorationRefresh(repoPath?: string): void {
+  if (!explorerBadgesEnabled()) {
+    return;
+  }
+  setTimeout(() => {
+    if (repoPath) {
+      folderDecorationProvider.refreshRepo(repoPath);
+    } else {
+      folderDecorationProvider.refresh();
+    }
+  }, 300);
+}
+
+async function registerFolderBadgeProvider(
+  context: vscode.ExtensionContext
+): Promise<void> {
+  const gitExt = vscode.extensions.getExtension('vscode.git');
+  if (gitExt && !gitExt.isActive) {
+    try {
+      await gitExt.activate();
+    } catch {
+      // Git disabled — still register our badges
+    }
+  }
+
+  context.subscriptions.push(
+    vscode.window.registerFileDecorationProvider(folderDecorationProvider)
+  );
+  scheduleFolderDecorationRefresh();
+  setTimeout(() => scheduleFolderDecorationRefresh(), 2000);
 }
 
 function resetRefreshTimer(): void {
@@ -42,8 +83,79 @@ function resetRefreshTimer(): void {
   const cfg = readConfig();
   const intervalMs = cfg.refreshIntervalMinutes * 60 * 1000;
   refreshTimer = setInterval(() => {
-    void refreshWorkspace(false);
+    void refreshKnownRepositories(false);
   }, intervalMs);
+}
+
+function repoWord(count: number): string {
+  return count === 1 ? 'repo' : 'repos';
+}
+
+function formatStatusBarTooltip(
+  statuses: RepoStatus[],
+  needPull: number,
+  needPush: number,
+  diverged: number
+): string {
+  const lines = ['Git sync status'];
+
+  if (needPull > 0) {
+    lines.push(`Pull: ${needPull} ${repoWord(needPull)} have incoming commits`);
+  }
+  if (needPush > 0) {
+    lines.push(`Push: ${needPush} ${repoWord(needPush)} have outgoing commits`);
+  }
+  if (diverged > 0) {
+    lines.push(
+      `Diverged: ${diverged} ${repoWord(diverged)} have both pull and push pending`
+    );
+  }
+  if (lines.length === 1) {
+    lines.push(`All ${statuses.length} tracked ${repoWord(statuses.length)} are in sync`);
+  }
+
+  lines.push('', 'Click to refresh repositories.');
+  return lines.join('\n');
+}
+
+function updateStatusBar(): void {
+  const statuses = [...statusService.getStatuses().values()];
+  const needPull = statuses.filter((s) => s.behind > 0).length;
+  const needPush = statuses.filter(
+    (s) => s.ahead > 0 && s.behind === 0
+  ).length;
+  const diverged = statuses.filter(
+    (s) => s.ahead > 0 && s.behind > 0
+  ).length;
+
+  const parts: string[] = [];
+  if (needPull > 0) {
+    parts.push(`$(arrow-down) ${needPull}`);
+  }
+  if (needPush > 0) {
+    parts.push(`$(arrow-up) ${needPush}`);
+  }
+  if (diverged > 0) {
+    parts.push(`$(arrow-both) ${diverged}`);
+  }
+
+  if (parts.length > 0) {
+    statusBarItem.text = parts.join(' ');
+    statusBarItem.tooltip = formatStatusBarTooltip(
+      statuses,
+      needPull,
+      needPush,
+      diverged
+    );
+  } else {
+    statusBarItem.text = `$(git-branch) Git Pull: ${statuses.length} repos`;
+    statusBarItem.tooltip = formatStatusBarTooltip(
+      statuses,
+      needPull,
+      needPush,
+      diverged
+    );
+  }
 }
 
 function logRepoSummary(): void {
@@ -56,7 +168,7 @@ function logRepoSummary(): void {
     } else if (!status.hasUpstream) {
       lines.push(`  ? ${repoPath} — no upstream`);
     } else if (status.ahead === 0 && status.behind === 0) {
-      lines.push(`  ✓ ${repoPath} — up to date (no badge unless showCleanRepositories)`);
+      lines.push(`  ✓ ${repoPath} — up to date`);
     } else {
       lines.push(
         `  ${repoPath} — ahead ${status.ahead}, behind ${status.behind}`
@@ -68,12 +180,17 @@ function logRepoSummary(): void {
 }
 
 async function refreshWorkspace(manualFetch: boolean): Promise<void> {
+  if (refreshInFlight) {
+    return;
+  }
+  refreshInFlight = true;
+  try {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders?.length) {
     lastRepoPaths = [];
     statusBarItem.text = '$(git-branch) Git Pull: open a folder';
     statusBarItem.tooltip = 'File → Open Folder… and choose a directory with git repos';
-    decorationProvider.refresh();
+    scheduleFolderDecorationRefresh();
     console.warn('[Git Pull Indicator] No workspace folder open');
     return;
   }
@@ -84,9 +201,7 @@ async function refreshWorkspace(manualFetch: boolean): Promise<void> {
 
   const roots = folders.map((f) => f.uri.fsPath).join(', ');
   lastRepoPaths = await scanRepositories(folders, cfg.maxDepth);
-  console.log(
-    `[Git Pull Indicator] Workspace root(s): ${roots}`
-  );
+  console.log(`[Git Pull Indicator] Workspace root(s): ${roots}`);
   console.log(
     `[Git Pull Indicator] Found ${lastRepoPaths.length} repos (maxDepth=${cfg.maxDepth})`
   );
@@ -97,41 +212,56 @@ async function refreshWorkspace(manualFetch: boolean): Promise<void> {
   await statusService.updateReposIncremental(
     lastRepoPaths,
     { doFetch: manualFetch },
-    (repoPath) => {
+    () => {
       done += 1;
-      decorationProvider.refreshRepo(repoPath);
       statusBarItem.text = `$(sync~spin) Git Pull: ${done}/${total}`;
     }
   );
 
-  decorationProvider.refresh();
-  treeViewProvider.refresh();
-
-  // Cursor иногда не перерисовывает Explorer сразу
-  setTimeout(() => {
-    decorationProvider.refresh();
-  }, 1500);
-
-  const withBadge = [...statusService.getStatuses().values()].filter((s) => {
-    if (s.error || !s.hasUpstream) {
-      return true;
-    }
-    if (s.ahead > 0 || s.behind > 0) {
-      return true;
-    }
-    return cfg.showCleanRepositories;
-  }).length;
-
-  statusBarItem.text = `$(git-branch) Git Pull: ${lastRepoPaths.length} repos`;
-  statusBarItem.tooltip =
-    `${withBadge} with badge · ${lastRepoPaths.length - withBadge} up to date (hidden)\n` +
-    'Click: Refresh · Clean repos hidden unless gitPullIndicator.showCleanRepositories';
+  scheduleFolderDecorationRefresh();
+  updateStatusBar();
   outputChannel.clear();
   logRepoSummary();
 
   const wsFolders = vscode.workspace.workspaceFolders ?? [];
   repoWatcher.updateRepos(lastRepoPaths, wsFolders);
-  nodeGitWatcher.updateRepos(lastRepoPaths, wsFolders);
+  } finally {
+    refreshInFlight = false;
+  }
+}
+
+async function refreshKnownRepositories(manualFetch: boolean): Promise<void> {
+  if (lastRepoPaths.length === 0) {
+    await refreshWorkspace(manualFetch);
+    return;
+  }
+  if (refreshInFlight) {
+    return;
+  }
+
+  refreshInFlight = true;
+  try {
+    statusService.updateConfig(readConfig());
+    let done = 0;
+    const total = lastRepoPaths.length;
+    statusBarItem.text = `$(sync~spin) Git Pull: ${done}/${total}`;
+
+    await statusService.updateReposIncremental(
+      lastRepoPaths,
+      { doFetch: manualFetch },
+      () => {
+        done += 1;
+        statusBarItem.text = `$(sync~spin) Git Pull: ${done}/${total}`;
+      }
+    );
+
+    scheduleFolderDecorationRefresh();
+    updateStatusBar();
+    outputChannel.clear();
+    logRepoSummary();
+  } finally {
+    refreshInFlight = false;
+  }
 }
 
 async function refreshSingleRepository(repoPath: string): Promise<void> {
@@ -139,8 +269,8 @@ async function refreshSingleRepository(repoPath: string): Promise<void> {
   console.log(
     `[Git Pull Indicator] Updated ${repoPath.split('/').pop()}: ↑${status.ahead} ↓${status.behind}`
   );
-  decorationProvider.refreshRepo(repoPath);
-  treeViewProvider.refresh();
+  scheduleFolderDecorationRefresh(repoPath);
+  updateStatusBar();
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -148,51 +278,66 @@ export function activate(context: vscode.ExtensionContext): void {
   outputChannel = vscode.window.createOutputChannel('Git Pull Indicator');
   const cfg = readConfig();
   statusService = new GitStatusService(cfg);
-  decorationProvider = new GitPullDecorationProvider(
+  console.log(
+    `[Git Pull Indicator] Explorer decorations: badges=${vscode.workspace
+      .getConfiguration('explorer.decorations')
+      .get<boolean>('badges', true)}, colors=${vscode.workspace
+      .getConfiguration('explorer.decorations')
+      .get<boolean>('colors', true)}`
+  );
+  folderDecorationProvider = new RepoFolderDecorationProvider(
     () => statusService.getStatuses(),
+    () => readConfig().useAsciiBadges,
     () => readConfig().showCleanRepositories,
-    () => readConfig().useAsciiBadges
+    () => readConfig().showExplorerFolderColors
   );
-  treeViewProvider = new StatusTreeViewProvider(
-    () => statusService.getStatuses(),
-    decorationProvider
-  );
-  const onRepoGitChange = (repoPath: string): void => {
+
+  const onRepoGitChange = (
+    repoPath: string,
+    statusFromApi?: RepoStatus,
+    dirtyOnly?: boolean
+  ): void => {
+    if (statusFromApi) {
+      const hasPrev = [...statusService.getStatuses().keys()].some((k) =>
+        pathsEqual(k, repoPath)
+      );
+      if (dirtyOnly && !hasPrev) {
+        void refreshSingleRepository(repoPath);
+        return;
+      }
+      statusService.applyStatus(repoPath, statusFromApi, { dirtyOnly });
+      scheduleFolderDecorationRefresh(repoPath);
+      updateStatusBar();
+      return;
+    }
     void refreshSingleRepository(repoPath);
   };
 
   repoWatcher = new GitRepoWatcher(onRepoGitChange);
-  nodeGitWatcher = new NodeGitWatcher(onRepoGitChange);
 
   context.subscriptions.push(
     subscribeGitExtension(onRepoGitChange),
     subscribeDocumentSave(() => lastRepoPaths, onRepoGitChange),
     subscribeWindowFocus(() => {
-      void refreshWorkspace(false);
+      if (readConfig().refreshOnWindowFocus) {
+        void refreshKnownRepositories(false);
+      }
     }),
-    { dispose: () => nodeGitWatcher.dispose() }
   );
 
-  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100
+  );
   statusBarItem.command = 'gitPullIndicator.refresh';
   statusBarItem.show();
   context.subscriptions.push(statusBarItem, outputChannel, {
     dispose: () => {
       repoWatcher.dispose();
-      nodeGitWatcher.dispose();
     },
   });
 
-  context.subscriptions.push(
-    vscode.window.registerFileDecorationProvider(decorationProvider)
-  );
-
-  context.subscriptions.push(
-    vscode.window.createTreeView('gitPullIndicator.statusView', {
-      treeDataProvider: treeViewProvider,
-      showCollapseAll: false,
-    })
-  );
+  void registerFolderBadgeProvider(context);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('gitPullIndicator.showLog', () => {
@@ -211,22 +356,14 @@ export function activate(context: vscode.ExtensionContext): void {
       statusBarItem.text = '$(sync~spin) Git Pull: fetching…';
       await statusService.fetchAll(lastRepoPaths);
       let done = 0;
-      await statusService.refreshAll((repoPath) => {
+      await statusService.refreshAll(() => {
         done += 1;
-        decorationProvider.refreshRepo(repoPath);
         statusBarItem.text = `$(sync~spin) Git Pull: ${done}/${lastRepoPaths.length}`;
       });
-      decorationProvider.refresh();
-      treeViewProvider.refresh();
-      statusBarItem.text = `$(git-branch) Git Pull: ${lastRepoPaths.length} repos`;
+      scheduleFolderDecorationRefresh();
+      updateStatusBar();
       outputChannel.clear();
       logRepoSummary();
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('gitPullIndicator.focusView', () => {
-      void vscode.commands.executeCommand('gitPullIndicator.statusView.focus');
     })
   );
 
@@ -283,14 +420,16 @@ export function activate(context: vscode.ExtensionContext): void {
   resetRefreshTimer();
   void refreshWorkspace(false).then(() => {
     if (lastRepoPaths.length === 0 && vscode.workspace.workspaceFolders?.length) {
-      void vscode.window.showInformationMessage(
-        'Git Pull Indicator: no git repos found. Open a parent folder that contains repos, or increase gitPullIndicator.maxDepth.',
-        'Open Output'
-      ).then((choice) => {
-        if (choice === 'Open Output') {
-          outputChannel.show(true);
-        }
-      });
+      void vscode.window
+        .showInformationMessage(
+          'Git Pull Indicator: no git repos found. Open a parent folder that contains repos, or increase gitPullIndicator.maxDepth.',
+          'Open Output'
+        )
+        .then((choice) => {
+          if (choice === 'Open Output') {
+            outputChannel.show(true);
+          }
+        });
     }
   });
 }
@@ -300,7 +439,10 @@ function findRepoForUri(fsPath: string): string | undefined {
   let best: string | undefined;
   for (const repoPath of lastRepoPaths) {
     const repoNorm = resolveFsPath(repoPath);
-    if (pathsEqual(normalized, repoNorm) || normalized.startsWith(repoNorm + '/')) {
+    if (
+      pathsEqual(normalized, repoNorm) ||
+      normalized.startsWith(repoNorm + '/')
+    ) {
       if (!best || repoNorm.length > best.length) {
         best = repoPath;
       }
@@ -315,5 +457,4 @@ export function deactivate(): void {
     refreshTimer = undefined;
   }
   repoWatcher?.dispose();
-  nodeGitWatcher?.dispose();
 }

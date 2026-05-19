@@ -1,4 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path fill="#C5C5C5" fill-rule="evenodd" d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zm0 2.05a6.45 6.45 0 1 1 0 12.9 6.45 6.45 0 0 1 0-12.9z"/>
-  <path fill="#C5C5C5" d="M11.05 6.75h1.9v6.35l2.55-2.55 1.35 1.35L12 17.1l-4.85-4.85 1.35-1.35 2.55 2.55V6.75z"/>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" fill="none">
+
+  <defs>
+    <mask id="folder-cutout" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+      <rect width="128" height="128" fill="white"/>
+      <circle cx="92" cy="84" r="22" fill="none" stroke="black" stroke-width="5"/>
+      <path d="M92 72V88" stroke="black" stroke-width="6" stroke-linecap="round"/>
+      <path d="M84 84L92 92L100 84" stroke="black" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+
+  <g transform="translate(64 65) scale(1.25) translate(-64 -65)">
+    <path
+      mask="url(#folder-cutout)"
+      d="M16 38C16 31.3726 21.3726 26 28 26H50L60 36H100C106.627 36 112 41.3726 112 48V92C112 98.6274 106.627 104 100 104H28C21.3726 104 16 98.6274 16 92V38Z"
+      fill="#2563EB"/>
+  </g>
+
 </svg>

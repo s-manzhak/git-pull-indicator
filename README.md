@@ -29,9 +29,9 @@ Or search **Git Pull Indicator** in Extensions (`Ctrl+Shift+X`).
 | `✓` | Up to date (if `showCleanRepositories` is enabled) |
 
 - Scans **multiple Git repositories** in one workspace (monorepo-friendly)
-- **Repositories** sidebar panel with `push N · pull M` summary
-- Status bar: `Git Pull: N repos`
-- Auto-refresh on Git changes, window focus, and periodic backup
+- Colors Git repository folders in Explorer by sync state
+- Status bar summary with pull / push / diverged counts
+- Auto-refresh on Git changes and periodic backup
 
 ASCII fallback (`gitPullIndicator.useAsciiBadges`): `PL` / `PS` / `PM`.
 
@@ -43,17 +43,19 @@ ASCII fallback (`gitPullIndicator.useAsciiBadges`): `PL` / `PS` / `PM`.
 | Git Pull Indicator: Fetch All | `git fetch --quiet` in all repos |
 | Git Pull Indicator: Open Repository Terminal | Open terminal in repo folder |
 | Git Pull Indicator: Show Log | Output channel with repo list |
-| Git Pull Indicator: Show Repositories Panel | Focus sidebar view |
 
 ## Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `gitPullIndicator.refreshIntervalMinutes` | `1` | Backup full refresh interval |
+| `gitPullIndicator.refreshIntervalMinutes` | `5` | Backup refresh interval |
 | `gitPullIndicator.autoFetch` | `false` | Run `git fetch` before status check |
 | `gitPullIndicator.maxDepth` | `4` | Max depth to search for `.git` |
+| `gitPullIndicator.statusConcurrency` | `3` | Max repositories checked at once |
 | `gitPullIndicator.showCleanRepositories` | `false` | Show `✓` on up-to-date repos |
 | `gitPullIndicator.useAsciiBadges` | `false` | Use PL/PS/PM instead of Unicode |
+| `gitPullIndicator.showExplorerFolderColors` | `true` | Color repository folders by sync state |
+| `gitPullIndicator.refreshOnWindowFocus` | `false` | Refresh all repos when Cursor regains focus |
 
 ## Development
 
@@ -80,7 +82,6 @@ GIT_TEST_FOLDER=/path/to/your/repos npm run debug:host
 
 ```bash
 npm run install:local
-# Developer: Reload Window
 ```
 
 ## Publish extension

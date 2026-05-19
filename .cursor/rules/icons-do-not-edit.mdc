@@ -1,0 +1,23 @@
+---
+description: Never modify extension icon assets unless the user explicitly asks to change icons
+globs:
+  - resources/**
+  - "**/icon.png"
+  - "**/git-pull-icon.svg"
+  - "**/activitybar-icon.svg"
+alwaysApply: true
+---
+
+# Icons — do not edit
+
+Do **not** modify, regenerate, convert, or replace files in `resources/` (including `git-pull-icon.svg`, `icon.png`, and any activity bar assets) unless the user **explicitly** requests an icon change in that message.
+
+Allowed without an explicit icon request:
+- Fix broken `package.json` paths that reference missing icon files (point to existing files only).
+- Read icons for context.
+
+Not allowed unless explicitly asked:
+- Running ImageMagick/`convert` on icons.
+- Rewriting SVG structure, colors, masks, or transparency.
+- Publishing a release solely to update icons.
+- Adding new icon files or deleting user icon files.

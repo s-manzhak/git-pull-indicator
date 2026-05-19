@@ -1,8 +1,8 @@
 {
   "name": "git-pull-indicator",
   "displayName": "Git Pull Indicator",
-  "description": "Shows Git remote status badges on repository folders in the Explorer",
-  "version": "0.1.2",
+  "description": "Shows Git pull/push badges on repository folders in the Explorer",
+  "version": "0.1.22",
   "publisher": "zhakman",
   "license": "MIT",
   "homepage": "https://marketplace.visualstudio.com/items?itemName=zhakman.git-pull-indicator",
@@ -34,7 +34,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "workspaceContains:**/.git"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -54,29 +55,11 @@
       {
         "command": "gitPullIndicator.showLog",
         "title": "Git Pull Indicator: Show Log"
-      },
-      {
-        "command": "gitPullIndicator.focusView",
-        "title": "Git Pull Indicator: Show Repositories Panel"
       }
     ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "git-pull-indicator",
-          "title": "Git Pull",
-          "icon": "resources/git-pull-icon.svg"
-        }
-      ]
-    },
-    "views": {
-      "git-pull-indicator": [
-        {
-          "id": "gitPullIndicator.statusView",
-          "name": "Repositories",
-          "icon": "resources/git-pull-icon.svg"
-        }
-      ]
+    "configurationDefaults": {
+      "explorer.decorations.badges": true,
+      "explorer.decorations.colors": true
     },
     "configuration": {
       "type": "object",
@@ -84,7 +67,7 @@
       "properties": {
         "gitPullIndicator.refreshIntervalMinutes": {
           "type": "number",
-          "default": 1,
+          "default": 5,
           "minimum": 1,
           "description": "Auto-refresh all repos every N minutes (backup if live watchers miss a commit)"
         },
@@ -99,6 +82,13 @@
           "minimum": 1,
           "description": "Maximum depth to search for .git folders inside workspace"
         },
+        "gitPullIndicator.statusConcurrency": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "Maximum number of repositories checked at the same time"
+        },
         "gitPullIndicator.showCleanRepositories": {
           "type": "boolean",
           "default": false,
@@ -107,7 +97,22 @@
         "gitPullIndicator.useAsciiBadges": {
           "type": "boolean",
           "default": false,
-          "description": "Use PL/PS/PM text badges instead of Unicode arrows (if badges do not show in Explorer)"
+          "description": "Use PL/PS/PM text instead of Unicode arrows"
+        },
+        "gitPullIndicator.showExplorerFolderBadges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show ↓/↑/↕ badge to the right of each git repo folder name in Explorer (repo root only, not files inside)"
+        },
+        "gitPullIndicator.showExplorerFolderColors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Color git repo folder names by sync state in Explorer when badges are hidden by built-in Git decorations"
+        },
+        "gitPullIndicator.refreshOnWindowFocus": {
+          "type": "boolean",
+          "default": false,
+          "description": "Refresh all repositories when Cursor regains focus. Disabled by default to reduce CPU usage in large workspaces"
         }
       }
     }
