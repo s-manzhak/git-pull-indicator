@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.26
+
+- Replace README preview with a generic mockup that does not show real repository names
+
+## 0.1.25
+
+- Add a README preview image that shows Explorer folder indicators, the Git Pull Push panel, and status bar summary
+
+## 0.1.24
+
+- Restore the original arrow cutout and move the Git logo cutout to the top-left without a diamond background
+
+## 0.1.23
+
+- Restore the Explorer sidebar panel as Git Pull Push with repo pull/push rows
+- Update the SVG view icon with a transparent Git logo cutout in the folder
+
 ## 0.1.22
 
 - Remove user-facing reload instructions from docs; activation is handled by workspace and startup events

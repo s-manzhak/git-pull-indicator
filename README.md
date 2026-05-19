@@ -5,6 +5,8 @@
 
 VS Code and **Cursor** extension that shows Git sync status on repository folders in the Explorer.
 
+![Git Pull Indicator preview](docs/images/git-pull-indicator-readme-preview.png)
+
 ## Install
 
 **From Marketplace (recommended):**
@@ -30,6 +32,7 @@ Or search **Git Pull Indicator** in Extensions (`Ctrl+Shift+X`).
 
 - Scans **multiple Git repositories** in one workspace (monorepo-friendly)
 - Colors Git repository folders in Explorer by sync state
+- Adds a **Git Pull Push** panel in Explorer with per-repository pull / push rows
 - Status bar summary with pull / push / diverged counts
 - Auto-refresh on Git changes and periodic backup
 
@@ -43,6 +46,7 @@ ASCII fallback (`gitPullIndicator.useAsciiBadges`): `PL` / `PS` / `PM`.
 | Git Pull Indicator: Fetch All | `git fetch --quiet` in all repos |
 | Git Pull Indicator: Open Repository Terminal | Open terminal in repo folder |
 | Git Pull Indicator: Show Log | Output channel with repo list |
+| Git Pull Indicator: Show Git Pull Push Panel | Focus Explorer panel |
 
 ## Settings
 

@@ -2,7 +2,7 @@
   "name": "git-pull-indicator",
   "displayName": "Git Pull Indicator",
   "description": "Shows Git pull/push badges on repository folders in the Explorer",
-  "version": "0.1.22",
+  "version": "0.1.26",
   "publisher": "zhakman",
   "license": "MIT",
   "homepage": "https://marketplace.visualstudio.com/items?itemName=zhakman.git-pull-indicator",
@@ -55,8 +55,25 @@
       {
         "command": "gitPullIndicator.showLog",
         "title": "Git Pull Indicator: Show Log"
+      },
+      {
+        "command": "gitPullIndicator.focusView",
+        "title": "Git Pull Indicator: Show Git Pull Push Panel"
+      },
+      {
+        "command": "gitPullIndicator.revealRepository",
+        "title": "Git Pull Indicator: Reveal Repository in Explorer"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "gitPullIndicator.statusView",
+          "name": "Git Pull Push",
+          "when": "workspaceFolderCount != 0"
+        }
+      ]
+    },
     "configurationDefaults": {
       "explorer.decorations.badges": true,
       "explorer.decorations.colors": true
