@@ -2,7 +2,7 @@
   "name": "git-pull-indicator",
   "displayName": "Git Pull Indicator",
   "description": "Shows Git remote status badges on repository folders in the Explorer",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "publisher": "zhakman",
   "license": "MIT",
   "homepage": "https://marketplace.visualstudio.com/items?itemName=zhakman.git-pull-indicator",
@@ -73,7 +73,8 @@
       "git-pull-indicator": [
         {
           "id": "gitPullIndicator.statusView",
-          "name": "Repositories"
+          "name": "Repositories",
+          "icon": "resources/git-pull-icon.svg"
         }
       ]
     },
