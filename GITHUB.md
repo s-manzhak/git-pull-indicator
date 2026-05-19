@@ -1,6 +1,6 @@
 # Публикация на GitHub
 
-Репозиторий: **https://github.com/zhakman/git-pull-indicator**
+Репозиторий: **https://github.com/s-manzhak/git-pull-indicator**
 
 ## 1. Создать репозиторий на GitHub
 
@@ -21,7 +21,7 @@ git status   # проверьте: нет node_modules, out, *.log
 git commit -m "Initial release v0.1.0"
 
 git branch -M main
-git remote add origin https://github.com/zhakman/git-pull-indicator.git
+git remote add origin https://github.com/s-manzhak/git-pull-indicator.git
 git push -u origin main
 ```
 

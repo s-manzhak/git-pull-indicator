@@ -64,7 +64,7 @@ ASCII fallback (`gitPullIndicator.useAsciiBadges`): `PL` / `PS` / `PM`.
 ## Development
 
 ```bash
-git clone https://github.com/zhakman/git-pull-indicator.git
+git clone https://github.com/s-manzhak/git-pull-indicator.git
 cd git-pull-indicator
 npm install
 npm run compile

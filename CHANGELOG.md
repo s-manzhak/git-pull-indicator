@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.28
+
+- Update repository and issue tracker metadata to s-manzhak/git-pull-indicator
+
 ## 0.1.27
 
 - Use an absolute GitHub raw URL for the README preview image so Marketplace can render it
