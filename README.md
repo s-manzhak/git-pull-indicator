@@ -5,7 +5,7 @@
 
 VS Code and **Cursor** extension that shows Git sync status on repository folders in the Explorer.
 
-![Git Pull Indicator preview](docs/images/git-pull-indicator-readme-preview.png)
+![Git Pull Indicator preview](https://raw.githubusercontent.com/s-manzhak/git-pull-indicator/main/docs/images/git-pull-indicator-readme-preview.png)
 
 ## Install
 

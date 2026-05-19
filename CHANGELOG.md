@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.27
+
+- Use an absolute GitHub raw URL for the README preview image so Marketplace can render it
+
 ## 0.1.26
 
 - Replace README preview with a generic mockup that does not show real repository names
