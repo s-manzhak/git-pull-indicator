@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "workspace",
+      "path": ".."
+    }
+  ],
+  "settings": {
+    "gitPullIndicator.maxDepth": 4,
+    "gitPullIndicator.showCleanRepositories": true,
+    "gitPullIndicator.autoFetch": false
+  }
+}

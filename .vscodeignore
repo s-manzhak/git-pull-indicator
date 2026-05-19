@@ -1,0 +1,13 @@
+.vscode/**
+.gitignore
+tsconfig.json
+src/**
+node_modules
+.git
+**/*.map
+scripts/**
+debug-test.code-workspace
+PUBLISHING.md
+git-pull-indicator-task.md
+deepseek-response.log
+**/*.vsix

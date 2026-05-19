@@ -1,0 +1,17 @@
+node_modules/
+out/
+*.vsix
+
+# Logs & local dev artifacts
+*.log
+deepseek-response.log
+git-pull-indicator-task.md
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+
+# Optional: uncomment if you use local install symlink outside repo
+# .vscode-test/
