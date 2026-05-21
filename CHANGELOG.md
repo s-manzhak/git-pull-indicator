@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.30
+
+- Add the SCM Providers Marketplace category
+
 ## 0.1.29
 
 - Fix stale push indicators after git push by trusting fresh CLI sync counts instead of preserving old ahead/behind values
