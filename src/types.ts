@@ -8,6 +8,8 @@ export interface RepoStatus {
   hasUpstream: boolean;
   /** Uncommitted or staged changes in the working tree. */
   isDirty?: boolean;
+  /** Epoch ms of the last `git fetch` (mtime of .git/FETCH_HEAD), if known. */
+  lastFetchedAt?: number;
   error?: string;
 }
 
@@ -26,4 +28,6 @@ export interface GitPullIndicatorConfig {
   showExplorerFolderBadges: boolean;
   showExplorerFolderColors: boolean;
   refreshOnWindowFocus: boolean;
+  /** Mark pull/push counts as possibly outdated if last fetch was older than this many minutes (0 disables the warning). */
+  staleFetchMinutes: number;
 }

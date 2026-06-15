@@ -36,7 +36,8 @@ export class RepoFolderDecorationProvider implements vscode.FileDecorationProvid
     private readonly getStatuses: () => Map<string, RepoStatus>,
     private readonly useAsciiBadges: () => boolean,
     private readonly showCleanRepositories: () => boolean,
-    private readonly showExplorerFolderColors: () => boolean
+    private readonly showExplorerFolderColors: () => boolean,
+    private readonly staleFetchMinutes: () => number
   ) {}
 
   refresh(): void {
@@ -59,7 +60,11 @@ export class RepoFolderDecorationProvider implements vscode.FileDecorationProvid
         continue;
       }
 
-      const badge = syncBadgeForStatus(status, this.useAsciiBadges());
+      const badge = syncBadgeForStatus(
+        status,
+        this.useAsciiBadges(),
+        this.staleFetchMinutes()
+      );
       const color = this.showExplorerFolderColors()
         ? colorForStatus(status)
         : undefined;

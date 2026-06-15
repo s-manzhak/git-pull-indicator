@@ -1,4 +1,6 @@
 import { exec } from 'child_process';
+import { promises as fsp } from 'fs';
+import * as path from 'path';
 import { promisify } from 'util';
 import { runPool } from './asyncPool';
 import { tryStatusFromGitApi } from './gitApiStatus';
@@ -107,8 +109,19 @@ export class GitStatusService {
       headCommit: fromApi.headCommit ?? subprocess.headCommit,
       branch: fromApi.branch ?? subprocess.branch,
       upstream: fromApi.upstream ?? subprocess.upstream,
+      lastFetchedAt: subprocess.lastFetchedAt,
       error: fromApi.error ?? subprocess.error,
     };
+  }
+
+  /** mtime of .git/FETCH_HEAD as a proxy for the last successful fetch. */
+  private async getLastFetchedAt(repoPath: string): Promise<number | undefined> {
+    try {
+      const stat = await fsp.stat(path.join(repoPath, '.git', 'FETCH_HEAD'));
+      return stat.mtimeMs;
+    } catch {
+      return undefined;
+    }
   }
 
   private resolveKey(repoPath: string): string {
@@ -164,6 +177,7 @@ export class GitStatusService {
       behind: previous?.behind ?? 0,
       hasUpstream: previous?.hasUpstream ?? false,
       isDirty: previous?.isDirty,
+      lastFetchedAt: previous?.lastFetchedAt,
     };
 
     try {
@@ -175,6 +189,7 @@ export class GitStatusService {
         }
       );
       this.applyPorcelainStatus(result.stdout, status);
+      status.lastFetchedAt = await this.getLastFetchedAt(repoPath);
     } catch (err) {
       status.error = err instanceof Error ? err.message : String(err);
       if (previous && !status.error.includes('not a git repository')) {

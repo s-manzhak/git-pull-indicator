@@ -30,10 +30,11 @@ class RepoTreeItem extends vscode.TreeItem {
   constructor(
     public readonly repoPath: string,
     public readonly status: RepoStatus,
-    useAscii: boolean
+    useAscii: boolean,
+    staleFetchMinutes: number
   ) {
     const name = path.basename(repoPath);
-    const badge = syncBadgeForStatus(status, useAscii);
+    const badge = syncBadgeForStatus(status, useAscii, staleFetchMinutes);
     const arrow = badge?.badge ?? '';
     const count =
       status.behind > 0 && status.ahead > 0
@@ -79,7 +80,8 @@ export class StatusTreeViewProvider implements vscode.TreeDataProvider<RepoTreeI
 
   constructor(
     private readonly getStatuses: () => Map<string, RepoStatus>,
-    private readonly useAsciiBadges: () => boolean
+    private readonly useAsciiBadges: () => boolean,
+    private readonly staleFetchMinutes: () => number
   ) {}
 
   refresh(): void {
@@ -92,6 +94,7 @@ export class StatusTreeViewProvider implements vscode.TreeDataProvider<RepoTreeI
 
   getChildren(): RepoTreeItem[] {
     const useAscii = this.useAsciiBadges();
+    const staleFetchMinutes = this.staleFetchMinutes();
     const items: RepoTreeItem[] = [];
 
     for (const [repoPath, status] of this.getStatuses()) {
@@ -99,7 +102,7 @@ export class StatusTreeViewProvider implements vscode.TreeDataProvider<RepoTreeI
       if (priority < 0 && !status.error) {
         continue;
       }
-      items.push(new RepoTreeItem(repoPath, status, useAscii));
+      items.push(new RepoTreeItem(repoPath, status, useAscii, staleFetchMinutes));
     }
 
     items.sort((a, b) => {

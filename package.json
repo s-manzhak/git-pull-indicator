@@ -2,7 +2,7 @@
   "name": "git-pull-indicator",
   "displayName": "Git Pull Indicator",
   "description": "Shows Git pull/push badges on repository folders in the Explorer",
-  "version": "0.1.30",
+  "version": "0.1.31",
   "publisher": "zhakman",
   "license": "MIT",
   "homepage": "https://marketplace.visualstudio.com/items?itemName=zhakman.git-pull-indicator",
@@ -64,6 +64,10 @@
       {
         "command": "gitPullIndicator.revealRepository",
         "title": "Git Pull Indicator: Reveal Repository in Explorer"
+      },
+      {
+        "command": "gitPullIndicator.clearCache",
+        "title": "Git Pull Indicator: Clear Path Cache and Rescan"
       }
     ],
     "views": {
@@ -131,6 +135,12 @@
           "type": "boolean",
           "default": false,
           "description": "Refresh all repositories when Cursor regains focus. Disabled by default to reduce CPU usage in large workspaces"
+        },
+        "gitPullIndicator.staleFetchMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 0,
+          "description": "Warn in badge tooltips that pull/push counts may be outdated when the last git fetch was more than N minutes ago (0 disables the warning; fetch age is always shown)"
         }
       }
     }

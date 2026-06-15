@@ -10,4 +10,10 @@ debug-test.code-workspace
 PUBLISHING.md
 git-pull-indicator-task.md
 deepseek-response.log
+CLAUDE.md
+.cursor/**
+.github/**
+.editorconfig
+CONTRIBUTING.md
+GITHUB.md
 **/*.vsix

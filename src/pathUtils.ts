@@ -29,6 +29,11 @@ export function pathsEqual(a: string, b: string): boolean {
   return resolveFsPath(a) === resolveFsPath(b);
 }
 
+/** Drop cached symlink resolutions so moved/remounted paths are re-resolved. */
+export function clearPathCache(): void {
+  realpathCache.clear();
+}
+
 export function toFileUri(fsPath: string): string {
   return resolveFsPath(fsPath);
 }

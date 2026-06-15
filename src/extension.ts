@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { scanRepositories } from './gitScanner';
 import { GitStatusService } from './gitStatusService';
-import { pathsEqual, resolveFsPath } from './pathUtils';
+import { clearPathCache, pathsEqual, resolveFsPath } from './pathUtils';
 import { subscribeGitExtension } from './gitExtensionListener';
 import { GitRepoWatcher } from './gitRepoWatcher';
 import { subscribeDocumentSave, subscribeWindowFocus } from './nodeGitWatcher';
@@ -38,6 +38,7 @@ function readConfig(): GitPullIndicatorConfig {
       true
     ),
     refreshOnWindowFocus: config.get<boolean>('refreshOnWindowFocus', false),
+    staleFetchMinutes: config.get<number>('staleFetchMinutes', 60),
   };
 }
 
@@ -331,11 +332,13 @@ export function activate(context: vscode.ExtensionContext): void {
     () => statusService.getStatuses(),
     () => readConfig().useAsciiBadges,
     () => readConfig().showCleanRepositories,
-    () => readConfig().showExplorerFolderColors
+    () => readConfig().showExplorerFolderColors,
+    () => readConfig().staleFetchMinutes
   );
   treeViewProvider = new StatusTreeViewProvider(
     () => statusService.getStatuses(),
-    () => readConfig().useAsciiBadges
+    () => readConfig().useAsciiBadges,
+    () => readConfig().staleFetchMinutes
   );
 
   const onRepoGitChange = (
@@ -421,6 +424,14 @@ export function activate(context: vscode.ExtensionContext): void {
       updateStatusTreeView();
       outputChannel.clear();
       logRepoSummary();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('gitPullIndicator.clearCache', () => {
+      clearPathCache();
+      lastRepoPaths = [];
+      void refreshWorkspace(false);
     })
   );
 

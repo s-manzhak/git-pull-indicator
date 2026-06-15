@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.31
+
+- Show how long ago each repository was last fetched in badge tooltips, and warn that pull/push counts may be outdated once the last fetch is older than `gitPullIndicator.staleFetchMinutes` (default 60, 0 disables)
+- Add the "Clear Path Cache and Rescan" command to recover from moved or remounted repository paths without reloading the window
+
 ## 0.1.30
 
 - Add the SCM Providers Marketplace category
