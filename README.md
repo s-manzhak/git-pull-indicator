@@ -33,10 +33,17 @@ Or search **Git Pull Indicator** in Extensions (`Ctrl+Shift+X`).
 - Scans **multiple Git repositories** in one workspace (monorepo-friendly)
 - Colors Git repository folders in Explorer by sync state
 - Adds a **Git Pull Push** panel in Explorer with per-repository pull / push rows
+- Opens a repository remote in the browser from the Explorer folder context menu
 - Status bar summary with pull / push / diverged counts
 - Auto-refresh on Git changes and periodic backup
 
 ASCII fallback (`gitPullIndicator.useAsciiBadges`): `PL` / `PS` / `PM`.
+
+### Open a repository in the browser
+
+Right-click a folder inside a Git repository and select **Open Git Repository in Browser**.
+
+The extension uses `origin` when available, supports HTTPS and common SSH remote formats, and lets you select a remote when a repository has multiple remotes but no `origin`.
 
 ## Commands
 
@@ -45,6 +52,7 @@ ASCII fallback (`gitPullIndicator.useAsciiBadges`): `PL` / `PS` / `PM`.
 | Git Pull Indicator: Refresh | Rescan workspace and update badges |
 | Git Pull Indicator: Fetch All | `git fetch --quiet` in all repos |
 | Git Pull Indicator: Open Repository Terminal | Open terminal in repo folder |
+| Git Pull Indicator: Open Git Repository in Browser | Open the repository remote in the default browser |
 | Git Pull Indicator: Show Log | Output channel with repo list |
 | Git Pull Indicator: Show Git Pull Push Panel | Focus Explorer panel |
 

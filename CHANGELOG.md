@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.32
+
+- Add **Open Git Repository in Browser** to the Explorer folder context menu
+- Convert common HTTPS, SSH, GitHub, GitLab, Bitbucket, and Azure DevOps remote formats into browser URLs
+- Prefer `origin`, offer a remote picker when needed, and reject local remotes safely
+
 ## 0.1.31
 
 - Show how long ago each repository was last fetched in badge tooltips, and warn that pull/push counts may be outdated once the last fetch is older than `gitPullIndicator.staleFetchMinutes` (default 60, 0 disables)

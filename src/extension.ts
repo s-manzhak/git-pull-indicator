@@ -5,6 +5,11 @@ import { clearPathCache, pathsEqual, resolveFsPath } from './pathUtils';
 import { subscribeGitExtension } from './gitExtensionListener';
 import { GitRepoWatcher } from './gitRepoWatcher';
 import { subscribeDocumentSave, subscribeWindowFocus } from './nodeGitWatcher';
+import {
+  BrowserRemote,
+  findGitRepositoryRoot,
+  getBrowserRemotes,
+} from './remoteRepository';
 import { RepoFolderDecorationProvider } from './repoFolderDecorationProvider';
 import { StatusTreeViewProvider } from './statusTreeView';
 import { GitPullIndicatorConfig, RepoStatus } from './types';
@@ -316,6 +321,106 @@ async function refreshSingleRepository(repoPath: string): Promise<void> {
   updateStatusTreeView();
 }
 
+async function pickRepositoryForRemote(
+  resource?: vscode.Uri
+): Promise<string | undefined> {
+  if (resource?.scheme === 'file') {
+    const knownRepo = findRepoForUri(resource.fsPath);
+    if (knownRepo) {
+      return knownRepo;
+    }
+
+    const detectedRepo = await findGitRepositoryRoot(resource.fsPath);
+    if (detectedRepo) {
+      return resolveFsPath(detectedRepo);
+    }
+
+    void vscode.window.showWarningMessage(
+      'Git Pull Indicator: this folder is not inside a Git repository.'
+    );
+    return undefined;
+  }
+
+  if (lastRepoPaths.length === 1) {
+    return lastRepoPaths[0];
+  }
+
+  if (lastRepoPaths.length > 1) {
+    const pick = await vscode.window.showQuickPick(
+      lastRepoPaths.map((repoPath) => ({
+        label: repoPath.split(/[\\/]/).pop() ?? repoPath,
+        description: repoPath,
+        repoPath,
+      })),
+      { placeHolder: 'Select a Git repository to open in the browser' }
+    );
+    return pick?.repoPath;
+  }
+
+  void vscode.window.showWarningMessage(
+    'Git Pull Indicator: no Git repositories found in this workspace.'
+  );
+  return undefined;
+}
+
+async function pickBrowserRemote(
+  remotes: BrowserRemote[]
+): Promise<BrowserRemote | undefined> {
+  const origin = remotes.find((remote) => remote.name === 'origin');
+  if (origin) {
+    return origin;
+  }
+  if (remotes.length === 1) {
+    return remotes[0];
+  }
+
+  const pick = await vscode.window.showQuickPick(
+    remotes.map((remote) => ({
+      label: remote.name,
+      description: remote.browserUrl,
+      remote,
+    })),
+    { placeHolder: 'Select a Git remote to open in the browser' }
+  );
+  return pick?.remote;
+}
+
+async function openRemoteRepository(resource?: vscode.Uri): Promise<void> {
+  const repoPath = await pickRepositoryForRemote(resource);
+  if (!repoPath) {
+    return;
+  }
+
+  try {
+    const remotes = await getBrowserRemotes(repoPath);
+    if (remotes.length === 0) {
+      void vscode.window.showWarningMessage(
+        'Git Pull Indicator: this repository has no browser-compatible Git remote.'
+      );
+      return;
+    }
+
+    const remote = await pickBrowserRemote(remotes);
+    if (!remote) {
+      return;
+    }
+
+    const opened = await vscode.env.openExternal(
+      vscode.Uri.parse(remote.browserUrl)
+    );
+    if (!opened) {
+      void vscode.window.showWarningMessage(
+        'Git Pull Indicator: the repository URL could not be opened.'
+      );
+    }
+  } catch (err) {
+    console.warn('[Git Pull Indicator] Failed to open repository remote:', err);
+    void vscode.window.showWarningMessage(
+      'Git Pull Indicator: the Git remote could not be read. Check the repository remote configuration.'
+    );
+  }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   console.log('[Git Pull Indicator] Extension activated');
   outputChannel = vscode.window.createOutputChannel('Git Pull Indicator');
@@ -449,6 +554,13 @@ export function activate(context: vscode.ExtensionContext): void {
         const uri = vscode.Uri.file(resolveFsPath(repoPath));
         await vscode.commands.executeCommand('revealInExplorer', uri);
       }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'gitPullIndicator.openRemoteRepository',
+      (resource?: vscode.Uri) => openRemoteRepository(resource)
     )
   );
 

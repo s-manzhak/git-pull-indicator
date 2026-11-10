@@ -2,7 +2,7 @@
   "name": "git-pull-indicator",
   "displayName": "Git Pull Indicator",
   "description": "Shows Git pull/push badges on repository folders in the Explorer",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "publisher": "zhakman",
   "license": "MIT",
   "homepage": "https://marketplace.visualstudio.com/items?itemName=zhakman.git-pull-indicator",
@@ -54,6 +54,12 @@
         "title": "Git Pull Indicator: Open Repository Terminal"
       },
       {
+        "command": "gitPullIndicator.openRemoteRepository",
+        "title": "Open Git Repository in Browser",
+        "category": "Git Pull Indicator",
+        "icon": "$(link-external)"
+      },
+      {
         "command": "gitPullIndicator.showLog",
         "title": "Git Pull Indicator: Show Log"
       },
@@ -76,6 +82,15 @@
           "id": "gitPullIndicator.statusView",
           "name": "Git Pull Push",
           "when": "workspaceFolderCount != 0"
+        }
+      ]
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "gitPullIndicator.openRemoteRepository",
+          "when": "explorerResourceIsFolder && resourceScheme == file",
+          "group": "navigation@50"
         }
       ]
     },
@@ -151,6 +166,7 @@
     "watch": "tsc -watch -p ./",
     "install:local": "bash scripts/install-local.sh",
     "debug:host": "bash scripts/open-debug-host.sh",
+    "test:remote-url": "npm run compile && node scripts/test-remote-url.js",
     "package": "vsce package",
     "publish": "vsce publish"
   },
