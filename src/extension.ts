@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { scanRepositories } from './gitScanner';
 import { GitStatusService } from './gitStatusService';
+import { GitOperation, runGitOperation } from './gitOperations';
 import { clearPathCache, pathsEqual, resolveFsPath } from './pathUtils';
 import { subscribeGitExtension } from './gitExtensionListener';
 import { GitRepoWatcher } from './gitRepoWatcher';
@@ -24,6 +25,7 @@ let lastRepoPaths: string[] = [];
 let statusBarItem: vscode.StatusBarItem;
 let outputChannel: vscode.OutputChannel;
 let refreshInFlight = false;
+const repositoryOperationsInFlight = new Set<string>();
 
 function readConfig(): GitPullIndicatorConfig {
   const config = vscode.workspace.getConfiguration('gitPullIndicator');
@@ -321,8 +323,9 @@ async function refreshSingleRepository(repoPath: string): Promise<void> {
   updateStatusTreeView();
 }
 
-async function pickRepositoryForRemote(
-  resource?: vscode.Uri
+async function pickRepository(
+  resource?: vscode.Uri,
+  placeHolder = 'Select a Git repository'
 ): Promise<string | undefined> {
   if (resource?.scheme === 'file') {
     const knownRepo = findRepoForUri(resource.fsPath);
@@ -352,7 +355,7 @@ async function pickRepositoryForRemote(
         description: repoPath,
         repoPath,
       })),
-      { placeHolder: 'Select a Git repository to open in the browser' }
+      { placeHolder }
     );
     return pick?.repoPath;
   }
@@ -386,7 +389,10 @@ async function pickBrowserRemote(
 }
 
 async function openRemoteRepository(resource?: vscode.Uri): Promise<void> {
-  const repoPath = await pickRepositoryForRemote(resource);
+  const repoPath = await pickRepository(
+    resource,
+    'Select a Git repository to open in the browser'
+  );
   if (!repoPath) {
     return;
   }
@@ -418,6 +424,79 @@ async function openRemoteRepository(resource?: vscode.Uri): Promise<void> {
     void vscode.window.showWarningMessage(
       'Git Pull Indicator: the Git remote could not be read. Check the repository remote configuration.'
     );
+  }
+}
+
+const operationLabels: Record<
+  GitOperation,
+  { command: string; progress: string }
+> = {
+  pull: { command: 'Pull', progress: 'Pulling' },
+  push: { command: 'Push', progress: 'Pushing' },
+  fetch: { command: 'Fetch', progress: 'Fetching' },
+};
+
+function repositoryName(repoPath: string): string {
+  return repoPath.split(/[\\/]/).pop() ?? repoPath;
+}
+
+function gitOperationErrorDetail(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const lines = message
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const detail = lines[lines.length - 1] ?? 'Check the Git configuration and credentials.';
+
+  return detail
+    .replace(/(https?:\/\/)[^@\s/]+@/gi, '$1')
+    .slice(0, 240);
+}
+
+async function executeRepositoryOperation(
+  operation: GitOperation,
+  resource?: vscode.Uri
+): Promise<void> {
+  const label = operationLabels[operation];
+  const repoPath = await pickRepository(
+    resource,
+    `Select a Git repository to ${operation}`
+  );
+  if (!repoPath) {
+    return;
+  }
+
+  const key = resolveFsPath(repoPath);
+  const name = repositoryName(repoPath);
+  if (repositoryOperationsInFlight.has(key)) {
+    void vscode.window.showInformationMessage(
+      `Git Pull Indicator: another Git operation is already running for ${name}.`
+    );
+    return;
+  }
+
+  repositoryOperationsInFlight.add(key);
+  try {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Git Pull Indicator: ${label.progress} ${name}…`,
+        cancellable: false,
+      },
+      () => runGitOperation(repoPath, operation)
+    );
+
+    await refreshSingleRepository(repoPath);
+    void vscode.window.showInformationMessage(
+      `Git Pull Indicator: ${label.command} completed for ${name}.`
+    );
+  } catch (error) {
+    await refreshSingleRepository(repoPath);
+    void vscode.window.showErrorMessage(
+      `Git Pull Indicator: ${label.command} failed for ${name}. ${gitOperationErrorDetail(error)}`
+    );
+  } finally {
+    repositoryOperationsInFlight.delete(key);
   }
 }
 
@@ -563,6 +642,16 @@ export function activate(context: vscode.ExtensionContext): void {
       (resource?: vscode.Uri) => openRemoteRepository(resource)
     )
   );
+
+  for (const operation of ['pull', 'push', 'fetch'] as const) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        `gitPullIndicator.${operation}Repository`,
+        (resource?: vscode.Uri) =>
+          executeRepositoryOperation(operation, resource)
+      )
+    );
+  }
 
   context.subscriptions.push(
     vscode.commands.registerCommand(

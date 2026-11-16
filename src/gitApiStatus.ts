@@ -4,6 +4,9 @@ import { RepoStatus } from './types';
 
 export interface GitRepository {
   rootUri: vscode.Uri;
+  fetch?(): Promise<void>;
+  pull?(): Promise<void>;
+  push?(): Promise<void>;
   state: {
     HEAD?: {
       name?: string;

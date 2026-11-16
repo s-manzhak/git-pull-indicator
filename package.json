@@ -2,7 +2,7 @@
   "name": "git-pull-indicator",
   "displayName": "Git Pull Indicator",
   "description": "Shows Git pull/push badges on repository folders in the Explorer",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "publisher": "zhakman",
   "license": "MIT",
   "homepage": "https://marketplace.visualstudio.com/items?itemName=zhakman.git-pull-indicator",
@@ -60,6 +60,24 @@
         "icon": "$(link-external)"
       },
       {
+        "command": "gitPullIndicator.pullRepository",
+        "title": "Pull",
+        "category": "Git Pull Indicator",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "gitPullIndicator.pushRepository",
+        "title": "Push",
+        "category": "Git Pull Indicator",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "gitPullIndicator.fetchRepository",
+        "title": "Fetch",
+        "category": "Git Pull Indicator",
+        "icon": "$(sync)"
+      },
+      {
         "command": "gitPullIndicator.showLog",
         "title": "Git Pull Indicator: Show Log"
       },
@@ -76,6 +94,13 @@
         "title": "Git Pull Indicator: Clear Path Cache and Rescan"
       }
     ],
+    "submenus": [
+      {
+        "id": "gitPullIndicator.repositoryOperations",
+        "label": "Git Pull Push",
+        "icon": "$(git-compare)"
+      }
+    ],
     "views": {
       "explorer": [
         {
@@ -90,7 +115,26 @@
         {
           "command": "gitPullIndicator.openRemoteRepository",
           "when": "explorerResourceIsFolder && resourceScheme == file",
-          "group": "navigation@50"
+          "group": "gitPullIndicator@1"
+        },
+        {
+          "submenu": "gitPullIndicator.repositoryOperations",
+          "when": "explorerResourceIsFolder && resourceScheme == file",
+          "group": "gitPullIndicator@2"
+        }
+      ],
+      "gitPullIndicator.repositoryOperations": [
+        {
+          "command": "gitPullIndicator.pullRepository",
+          "group": "gitPullIndicator@1"
+        },
+        {
+          "command": "gitPullIndicator.pushRepository",
+          "group": "gitPullIndicator@2"
+        },
+        {
+          "command": "gitPullIndicator.fetchRepository",
+          "group": "gitPullIndicator@3"
         }
       ]
     },

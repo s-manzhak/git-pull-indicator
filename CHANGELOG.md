@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.33
+
+- Add a **Git Pull Push** Explorer folder submenu with Pull, Push, and Fetch commands
+- Place the browser shortcut and Git operations together in a dedicated context-menu section
+- Show operation progress and refresh repository indicators after each command
+
 ## 0.1.32
 
 - Add **Open Git Repository in Browser** to the Explorer folder context menu

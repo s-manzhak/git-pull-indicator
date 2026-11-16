@@ -34,16 +34,18 @@ Or search **Git Pull Indicator** in Extensions (`Ctrl+Shift+X`).
 - Colors Git repository folders in Explorer by sync state
 - Adds a **Git Pull Push** panel in Explorer with per-repository pull / push rows
 - Opens a repository remote in the browser from the Explorer folder context menu
+- Runs Pull, Push, and Fetch from a repository folder context submenu
 - Status bar summary with pull / push / diverged counts
 - Auto-refresh on Git changes and periodic backup
 
 ASCII fallback (`gitPullIndicator.useAsciiBadges`): `PL` / `PS` / `PM`.
 
-### Open a repository in the browser
+### Repository folder context menu
 
-Right-click a folder inside a Git repository and select **Open Git Repository in Browser**.
+Right-click a folder inside a Git repository to use the dedicated Git Pull Indicator section:
 
-The extension uses `origin` when available, supports HTTPS and common SSH remote formats, and lets you select a remote when a repository has multiple remotes but no `origin`.
+- **Open Git Repository in Browser** opens the remote repository page. The extension uses `origin` when available, supports HTTPS and common SSH remote formats, and lets you select a remote when needed.
+- **Git Pull Push** opens a submenu with **Pull**, **Push**, and **Fetch** for the selected repository. Progress is shown in a notification, and folder indicators refresh after the operation.
 
 ## Commands
 
@@ -53,6 +55,9 @@ The extension uses `origin` when available, supports HTTPS and common SSH remote
 | Git Pull Indicator: Fetch All | `git fetch --quiet` in all repos |
 | Git Pull Indicator: Open Repository Terminal | Open terminal in repo folder |
 | Git Pull Indicator: Open Git Repository in Browser | Open the repository remote in the default browser |
+| Git Pull Indicator: Pull | Pull the selected repository |
+| Git Pull Indicator: Push | Push the selected repository |
+| Git Pull Indicator: Fetch | Fetch the selected repository |
 | Git Pull Indicator: Show Log | Output channel with repo list |
 | Git Pull Indicator: Show Git Pull Push Panel | Focus Explorer panel |
 
